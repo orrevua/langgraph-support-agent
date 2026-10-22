@@ -1,0 +1,43 @@
+[project]
+name = "supportagent"
+version = "0.1.0"
+description = "LangGraph customer-support agent for a mock Brazilian fintech, with human-in-the-loop approvals"
+readme = "README.md"
+authors = [
+    { name = "orrevua", email = "felipevictor67@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.159.1",
+    "httpx>=0.28.1",
+    "langchain-anthropic>=1.7.6",
+    "langchain-core>=1.6.13",
+    "langgraph>=1.2.16",
+    "langgraph-checkpoint-postgres>=3.2.0",
+    "psycopg[binary,pool]>=3.3.6",
+    "pydantic-settings>=2.16.1",
+    "pyyaml>=6.0.3",
+    "rich>=15.0.0",
+    "uvicorn>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["postgres: needs the local Postgres database (skipped when unreachable)"]
