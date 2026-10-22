@@ -1,4 +1,4 @@
-.PHONY: setup test lint fmt demo
+.PHONY: setup test lint fmt demo db-seed
 export LLM_PROVIDER ?= fake
 
 setup:
@@ -17,3 +17,6 @@ fmt:
 
 demo:
 	uv run python examples/01_fundamentals.py
+
+db-seed:
+	uv run python -m supportagent.db seed

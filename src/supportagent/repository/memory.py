@@ -87,9 +87,7 @@ class InMemoryBankRepository:
 
     def record_approval(self, record: ApprovalRecord) -> ApprovalRecord:
         with self._lock:
-            stored = record.model_copy(
-                update={"id": len(self.approvals) + 1, "created_at": datetime.now(UTC)}
-            )
+            stored = record.model_copy(update={"id": len(self.approvals) + 1, "created_at": datetime.now(UTC)})
             self.approvals.append(stored)
             return stored
 

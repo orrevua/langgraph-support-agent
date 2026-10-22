@@ -159,9 +159,7 @@ def classify(text: str) -> str:
         "pix" in text and pix_problem
     ):
         return "payment_status"
-    if any(
-        k in text for k in ("transaction", "statement", "extrato", "recent", "history", "spent", "purchases")
-    ):
+    if any(k in text for k in ("transaction", "statement", "extrato", "recent", "history", "spent", "purchases")):
         return "transactions"
     if any(k in text for k in ("balance", "saldo", "how much money", "account summary", "my accounts")):
         return "balance"
@@ -180,9 +178,7 @@ def plan_balance(turn: Turn, call, reply) -> AIMessage:
     data, err = summary
     if err:
         return reply(f"I couldn't load your accounts right now ({data}).", "empathetic")
-    lines = [
-        f"- {a['kind'].capitalize()} account {a['account_id']}: {a['balance']}" for a in data["accounts"]
-    ]
+    lines = [f"- {a['kind'].capitalize()} account {a['account_id']}: {a['balance']}" for a in data["accounts"]]
     return reply("Here are your balances:\n" + "\n".join(lines) + f"\nTotal: {data['total_balance']}.")
 
 
@@ -335,9 +331,7 @@ def explain_status(data: dict) -> str:
             text += f" It is eligible for a refund of up to {refund['max_refund']}; just ask me to refund it."
         return text
     if status == "RETURNED":
-        return (
-            f"{head} failed ({net['failure_reason']}), but the funds were already returned to your account."
-        )
+        return f"{head} failed ({net['failure_reason']}), but the funds were already returned to your account."
     if status == "IN_PROCESS":
         return f"{head} is still pending, being processed by the receiving bank. {net['expected_resolution']}"
     if status == "SETTLED":
@@ -346,9 +340,7 @@ def explain_status(data: dict) -> str:
             f"using the end-to-end ID {net['end_to_end_id']}."
         )
     if status == "IN_DISPUTE":
-        return (
-            f"{head} is under dispute. It is eligible for a refund of up to {data['refund']['max_refund']}."
-        )
+        return f"{head} is under dispute. It is eligible for a refund of up to {data['refund']['max_refund']}."
     return f"{head} was captured successfully by the card network."
 
 

@@ -38,8 +38,6 @@ def retry_with_backoff[T](
                 raise
             delay = min(max_delay, base_delay * 2 ** (attempt - 1))
             delay += delay * 0.1 * rng.random()  # jitter avoids synchronized retry storms
-            log.warning(
-                "transient error (attempt %d/%d): %s; retrying in %.2fs", attempt, attempts, exc, delay
-            )
+            log.warning("transient error (attempt %d/%d): %s; retrying in %.2fs", attempt, attempts, exc, delay)
             sleep(delay)
     raise AssertionError("unreachable")

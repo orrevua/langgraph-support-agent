@@ -51,9 +51,7 @@ def make_agent_node(model: BaseChatModel, tools: list[BaseTool], settings: Setti
         if state.get("agent_steps", 0) >= settings.max_agent_steps:
             log.warning("step limit reached for customer %s", state.get("customer_id"))
             return {"messages": [AIMessage(STEP_LIMIT_REPLY)]}
-        system = SystemMessage(
-            SYSTEM_PROMPT.format(customer_id=state["customer_id"], today=date.today().isoformat())
-        )
+        system = SystemMessage(SYSTEM_PROMPT.format(customer_id=state["customer_id"], today=date.today().isoformat()))
         response = model_with_tools.invoke([system, *state["messages"]])
         # Partial update: add_messages appends `response`, count_steps adds 1.
         return {"messages": [response], "agent_steps": 1}
@@ -95,9 +93,7 @@ def make_tools_node(tools: list[BaseTool]):
                 results.append(_error(call_id, name, str(exc)))
             except Exception as exc:  # bugs, validation errors: never crash the conversation
                 log.exception("tool %s failed", name)
-                results.append(
-                    _error(call_id, name, f"Internal error while running {name}: {type(exc).__name__}")
-                )
+                results.append(_error(call_id, name, f"Internal error while running {name}: {type(exc).__name__}"))
         return {"messages": results}
 
     return run_tools

@@ -67,9 +67,7 @@ def generic_policy(messages: Sequence[BaseMessage], tools: list[dict[str, Any]])
     best, best_score = None, 0
     for spec in tools:
         fn = spec["function"]
-        vocab = set(
-            re.findall(r"[a-z]+", f"{fn['name'].replace('_', ' ')} {fn.get('description', '')}".lower())
-        )
+        vocab = set(re.findall(r"[a-z]+", f"{fn['name'].replace('_', ' ')} {fn.get('description', '')}".lower()))
         score = len(words & vocab)
         if score > best_score:
             best, best_score = fn, score

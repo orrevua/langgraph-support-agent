@@ -144,13 +144,10 @@ def build_tools(ctx: ToolContext) -> list[BaseTool]:
         return _dump(
             {
                 "accounts": [
-                    {"account_id": a.id, "kind": a.kind, "balance": format_brl(a.balance_cents)}
-                    for a in accounts
+                    {"account_id": a.id, "kind": a.kind, "balance": format_brl(a.balance_cents)} for a in accounts
                 ],
                 "total_balance": format_brl(sum(a.balance_cents for a in accounts)),
-                "cards": [
-                    {"card_id": c.id, "kind": c.kind, "last4": c.last4, "status": c.status} for c in cards
-                ],
+                "cards": [{"card_id": c.id, "kind": c.kind, "last4": c.last4, "status": c.status} for c in cards],
             }
         )
 
@@ -211,9 +208,7 @@ def build_tools(ctx: ToolContext) -> list[BaseTool]:
                 "description": txn.description,
                 "status": txn.status,
                 "network": status.model_dump(mode="json", exclude={"checked_at", "transaction_id"}),
-                "refund": refund_eligibility(
-                    txn, repo.list_refunds(txn.id), settings.refund_hard_limit_cents
-                ),
+                "refund": refund_eligibility(txn, repo.list_refunds(txn.id), settings.refund_hard_limit_cents),
             }
         )
 

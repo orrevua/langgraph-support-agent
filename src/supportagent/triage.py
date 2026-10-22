@@ -37,9 +37,7 @@ def heuristic_triage(text: str) -> dict:
     """Keyword triage used by the offline fake model (a real model does this from the schema)."""
     lower = text.lower()
     category = next((cat for cat, keys in _CATEGORY_KEYWORDS if any(k in lower for k in keys)), "other")
-    urgent = any(
-        k in lower for k in ("stolen", "fraud", "never arrived", "missing", "urgent", "not received")
-    )
+    urgent = any(k in lower for k in ("stolen", "fraud", "never arrived", "missing", "urgent", "not received"))
     negative = any(k in lower for k in ("angry", "terrible", "!", "still", "never", "unacceptable"))
     return {
         "category": category,
