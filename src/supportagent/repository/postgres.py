@@ -8,6 +8,7 @@ from __future__ import annotations
 from importlib import resources
 
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from supportagent.domain import seed
@@ -22,7 +23,7 @@ from supportagent.domain.models import (
     TxnStatus,
 )
 
-TABLES = ["refunds", "transactions", "cards", "accounts", "customers"]
+TABLES = ["approval_audit", "refunds", "transactions", "cards", "accounts", "customers"]
 
 
 class PostgresBankRepository:
@@ -150,7 +151,27 @@ class PostgresBankRepository:
         return Refund(**row)
 
     def record_approval(self, record: ApprovalRecord) -> ApprovalRecord:
-        raise NotImplementedError("added with the human-in-the-loop milestone")
+        # ON CONFLICT makes the write idempotent if a node is ever re-executed.
+        row = self._one(
+            "INSERT INTO approval_audit (thread_id, tool_call_id, tool_name, proposed_args, final_args, decision, "
+            "reviewer, reason) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (thread_id, tool_call_id) DO UPDATE SET thread_id = EXCLUDED.thread_id RETURNING *",
+            (
+                record.thread_id,
+                record.tool_call_id,
+                record.tool_name,
+                Jsonb(record.proposed_args),
+                Jsonb(record.final_args) if record.final_args is not None else None,
+                record.decision,
+                record.reviewer,
+                record.reason,
+            ),
+        )
+        return ApprovalRecord(**row)
 
     def list_approvals(self, thread_id: str | None = None) -> list[ApprovalRecord]:
-        raise NotImplementedError("added with the human-in-the-loop milestone")
+        rows = self._all(
+            "SELECT * FROM approval_audit WHERE %s::text IS NULL OR thread_id = %s ORDER BY id",
+            (thread_id, thread_id),
+        )
+        return [ApprovalRecord(**r) for r in rows]

@@ -1,4 +1,4 @@
-.PHONY: setup test lint fmt demo db-seed
+.PHONY: setup test lint fmt demo db-seed api
 export LLM_PROVIDER ?= fake
 
 setup:
@@ -20,3 +20,6 @@ demo:
 
 db-seed:
 	uv run python -m supportagent.db seed
+
+api:
+	uv run uvicorn supportagent.api:create_app --factory --reload --port 8000

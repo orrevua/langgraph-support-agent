@@ -1,6 +1,8 @@
 """The support agent as an explicit LangGraph StateGraph (a hand-written ReAct loop).
 
     START -> agent --(tool calls?)--> tools -> agent -> ... -> END
+               |
+               +--(sensitive tool call?)--> human_review (interrupt) -> tools
 
 We deliberately do NOT use `create_react_agent`: writing the loop yourself shows exactly where
 you can add guardrails, approvals and limits, which is the whole point of this project.
@@ -22,6 +24,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Checkpointer
 
 from supportagent.agent.prompts import SYSTEM_PROMPT
+from supportagent.agent.review import make_human_review_node
 from supportagent.agent.state import AgentState
 from supportagent.config import Settings, get_settings
 from supportagent.tools import SENSITIVE_TOOLS, ToolContext, ToolError, build_tools
@@ -103,12 +106,14 @@ def _error(call_id: str, name: str, text: str) -> ToolMessage:
     return ToolMessage(content=f"ERROR: {text}", tool_call_id=call_id, name=name, status="error")
 
 
-def route_after_agent(state: AgentState) -> Literal["tools", "__end__"]:
-    """Conditional edge: keep looping while the model asks for tools."""
+def route_after_agent(state: AgentState) -> Literal["tools", "human_review", "__end__"]:
+    """Conditional edge: loop while the model asks for tools; detour via review if sensitive."""
     ai = last_ai_message(state)
-    if ai is not None and ai.tool_calls and state["messages"][-1] is ai:
-        return "tools"
-    return END
+    if ai is None or not ai.tool_calls or state["messages"][-1] is not ai:
+        return END
+    if any(call["name"] in SENSITIVE_TOOLS for call in ai.tool_calls):
+        return "human_review"
+    return "tools"
 
 
 def build_graph(
@@ -124,7 +129,12 @@ def build_graph(
     builder = StateGraph(AgentState)
     builder.add_node("agent", make_agent_node(model, tools, settings))
     builder.add_node("tools", make_tools_node(tools))
+    builder.add_node("human_review", make_human_review_node(ctx))
     builder.add_edge(START, "agent")
-    builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
+    builder.add_conditional_edges(
+        "agent", route_after_agent, {"tools": "tools", "human_review": "human_review", END: END}
+    )
+    # After review, approved calls run and rejected ones already have an error ToolMessage.
+    builder.add_edge("human_review", "tools")
     builder.add_edge("tools", "agent")
     return builder.compile(checkpointer=checkpointer)

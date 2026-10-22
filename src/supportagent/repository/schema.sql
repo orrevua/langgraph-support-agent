@@ -54,3 +54,19 @@ CREATE TABLE IF NOT EXISTS refunds (
     approved_by    text
 );
 CREATE SEQUENCE IF NOT EXISTS refund_seq START 100;
+
+-- Audit trail of human decisions on sensitive actions (append-only).
+CREATE TABLE IF NOT EXISTS approval_audit (
+    id            bigserial PRIMARY KEY,
+    thread_id     text NOT NULL,
+    tool_call_id  text NOT NULL,
+    tool_name     text NOT NULL,
+    proposed_args jsonb NOT NULL,
+    final_args    jsonb,
+    decision      text NOT NULL CHECK (decision IN ('approved', 'rejected')),
+    reviewer      text NOT NULL,
+    reason        text,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (thread_id, tool_call_id)
+);
+CREATE INDEX IF NOT EXISTS approval_audit_thread_idx ON approval_audit (thread_id, created_at);
