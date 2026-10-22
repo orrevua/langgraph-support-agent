@@ -10,6 +10,7 @@ from langchain_core.language_models import BaseChatModel
 
 from supportagent.config import Settings, get_settings
 from supportagent.llm.fake import ScriptedChatModel, generic_policy
+from supportagent.llm.policy import support_policy
 from supportagent.triage import heuristic_triage
 
 
@@ -30,15 +31,12 @@ def get_chat_model(settings: Settings | None = None, *, fast: bool = False) -> B
 
 
 def build_fake_model() -> ScriptedChatModel:
-    policies = []
-    try:  # the support-agent policy is added in milestone 2
-        from supportagent.llm.policy import support_policy
-
-        policies.append(support_policy)
-    except ImportError:  # pragma: no cover
-        pass
-    policies.append(generic_policy)
-    return ScriptedChatModel(policies=policies, structured_handlers={"TicketTriage": heuristic_triage})
+    # The support policy handles the agent; the generic one handles everything else
+    # (e.g. the tool-calling demo in examples/01_fundamentals.py).
+    return ScriptedChatModel(
+        policies=[support_policy, generic_policy],
+        structured_handlers={"TicketTriage": heuristic_triage},
+    )
 
 
 def describe_provider(settings: Settings | None = None) -> str:
