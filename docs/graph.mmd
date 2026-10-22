@@ -1,0 +1,23 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	guard(guard)
+	agent(agent)
+	tools(tools)
+	human_review(human_review)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> guard;
+	agent -.-> __end__;
+	agent -.-> human_review;
+	agent -.-> tools;
+	guard -.-> __end__;
+	guard -.-> agent;
+	human_review --> tools;
+	tools --> agent;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

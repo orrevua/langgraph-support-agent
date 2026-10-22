@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 from pydantic import BaseModel
@@ -39,7 +39,7 @@ class TurnResult(BaseModel):
     status: Literal["completed", "pending_approval"]
     reply: str | None = None
     pending: list[PendingAction] = []
-    tools_called: list[str] = []
+    tools_called: list[str] = []  # every tool call the model made in this user turn
 
 
 class AgentService:
@@ -78,7 +78,6 @@ class AgentService:
 
     def _run(self, thread_id: str, graph_input: Any) -> TurnResult:
         config = self._config(thread_id)
-        before = len(self.graph.get_state(config).values.get("messages", []))
         try:
             state = self.graph.invoke(graph_input, config)
         except GraphRecursionError:
@@ -87,7 +86,8 @@ class AgentService:
 
             return TurnResult(thread_id=thread_id, status="completed", reply=STEP_LIMIT_REPLY)
         messages = state.get("messages", [])
-        tools = [c["name"] for m in messages[before:] if isinstance(m, AIMessage) for c in m.tool_calls]
+        turn_start = max((i for i, m in enumerate(messages) if isinstance(m, HumanMessage)), default=0)
+        tools = [c["name"] for m in messages[turn_start:] if isinstance(m, AIMessage) for c in m.tool_calls]
         pending = self.pending(thread_id)
         if pending:
             return TurnResult(thread_id=thread_id, status="pending_approval", pending=pending, tools_called=tools)
