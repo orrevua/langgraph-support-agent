@@ -1,6 +1,9 @@
 """The support agent as an explicit LangGraph StateGraph (a hand-written ReAct loop).
 
-    START -> agent --(tool calls?)--> tools -> agent -> ... -> END
+    START -> guard --(blocked?)--> END
+               |
+               v
+             agent --(tool calls?)--> tools -> agent -> ... -> END
                |
                +--(sensitive tool call?)--> human_review (interrupt) -> tools
 
@@ -18,7 +21,7 @@ from datetime import date
 from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Checkpointer
@@ -27,9 +30,15 @@ from supportagent.agent.prompts import SYSTEM_PROMPT
 from supportagent.agent.review import make_human_review_node
 from supportagent.agent.state import AgentState
 from supportagent.config import Settings, get_settings
+from supportagent.guardrails import detect_prompt_injection, flag_untrusted_output, mask_pii, validate_user_message
 from supportagent.tools import SENSITIVE_TOOLS, ToolContext, ToolError, build_tools
 
 log = logging.getLogger(__name__)
+
+INJECTION_REPLY = (
+    "I can't help with that request. I can only act on your own account, following our security "
+    "policies, and sensitive actions like refunds always go through a human review."
+)
 
 STEP_LIMIT_REPLY = (
     "I'm sorry, I couldn't resolve this automatically. I've escalated your conversation to a "
@@ -42,6 +51,28 @@ def last_ai_message(state: AgentState) -> AIMessage | None:
         if isinstance(message, AIMessage):
             return message
     return None
+
+
+def make_guard_node(settings: Settings):
+    def guard(state: AgentState) -> dict:
+        """Input guardrails, before the model sees anything. No LLM call = cheap and deterministic."""
+        last = state["messages"][-1]
+        if not isinstance(last, HumanMessage):
+            return {"flags": []}
+        text = str(last.content)
+        if error := validate_user_message(text, settings.max_message_chars):
+            return {"messages": [AIMessage(error)], "flags": ["invalid_input"]}
+        verdict = detect_prompt_injection(text)
+        if verdict.blocked:
+            log.warning("prompt injection blocked (score=%d, %s): %s", verdict.score, verdict.matches, text[:200])
+            return {"messages": [AIMessage(INJECTION_REPLY)], "flags": ["prompt_injection", *verdict.matches]}
+        return {"flags": []}
+
+    return guard
+
+
+def route_after_guard(state: AgentState) -> Literal["agent", "__end__"]:
+    return END if state.get("flags") else "agent"
 
 
 def make_agent_node(model: BaseChatModel, tools: list[BaseTool], settings: Settings):
@@ -77,7 +108,9 @@ def make_tools_node(tools: list[BaseTool]):
             if call["id"] in answered:
                 continue
             name, call_id = call["name"], call["id"]
-            log.info("tool call %s args=%s", name, json.dumps(call["args"], ensure_ascii=False))
+            # Logged through the PII-masking filter (see guardrails.configure_logging); masking here
+            # too keeps logs clean even if a different logging setup is used.
+            log.info("tool call %s args=%s", name, mask_pii(json.dumps(call["args"], ensure_ascii=False)))
             tool = tools_by_name.get(name)
             if tool is None:
                 results.append(_error(call_id, name, f"Unknown tool {name!r}."))
@@ -90,7 +123,7 @@ def make_tools_node(tools: list[BaseTool]):
                     continue
                 args["approved_by"] = approved[call_id]
             try:
-                output = tool.invoke(args)
+                output = flag_untrusted_output(tool.invoke(args))
                 results.append(ToolMessage(content=output, tool_call_id=call_id, name=name))
             except ToolError as exc:  # expected business errors: let the model explain them
                 results.append(_error(call_id, name, str(exc)))
@@ -127,10 +160,12 @@ def build_graph(
     tools = build_tools(ctx)
 
     builder = StateGraph(AgentState)
+    builder.add_node("guard", make_guard_node(settings))
     builder.add_node("agent", make_agent_node(model, tools, settings))
     builder.add_node("tools", make_tools_node(tools))
     builder.add_node("human_review", make_human_review_node(ctx))
-    builder.add_edge(START, "agent")
+    builder.add_edge(START, "guard")
+    builder.add_conditional_edges("guard", route_after_guard, {"agent": "agent", END: END})
     builder.add_conditional_edges(
         "agent", route_after_agent, {"tools": "tools", "human_review": "human_review", END: END}
     )

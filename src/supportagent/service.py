@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from langchain_core.messages import AIMessage
+from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 from pydantic import BaseModel
 
@@ -78,7 +79,13 @@ class AgentService:
     def _run(self, thread_id: str, graph_input: Any) -> TurnResult:
         config = self._config(thread_id)
         before = len(self.graph.get_state(config).values.get("messages", []))
-        state = self.graph.invoke(graph_input, config)
+        try:
+            state = self.graph.invoke(graph_input, config)
+        except GraphRecursionError:
+            # Backstop for runaway loops; the agent node's step limit normally triggers first.
+            from supportagent.agent.graph import STEP_LIMIT_REPLY
+
+            return TurnResult(thread_id=thread_id, status="completed", reply=STEP_LIMIT_REPLY)
         messages = state.get("messages", [])
         tools = [c["name"] for m in messages[before:] if isinstance(m, AIMessage) for c in m.tool_calls]
         pending = self.pending(thread_id)

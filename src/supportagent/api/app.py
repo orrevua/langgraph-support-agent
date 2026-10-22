@@ -20,6 +20,7 @@ from supportagent.agent.review import PendingAction, ReviewDecision
 from supportagent.checkpointing import open_checkpointer
 from supportagent.config import Settings, get_settings
 from supportagent.domain.models import ApprovalRecord
+from supportagent.guardrails import configure_logging
 from supportagent.payments import MockPaymentsClient, build_payments_router
 from supportagent.repository import build_repository
 from supportagent.runtime import build_agent
@@ -50,8 +51,10 @@ class PendingResponse(BaseModel):
     pending: list[PendingAction]
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, setup_logging: bool = True) -> FastAPI:
     settings = settings or get_settings()
+    if setup_logging:
+        configure_logging()  # installs the PII-masking log filter
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

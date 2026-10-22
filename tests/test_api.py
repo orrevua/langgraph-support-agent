@@ -8,7 +8,7 @@ ANA = {"X-Customer-Id": "C001"}
 
 @pytest.fixture
 def client(settings):
-    with TestClient(create_app(settings)) as c:
+    with TestClient(create_app(settings, setup_logging=False)) as c:
         yield c
 
 
